@@ -15,7 +15,7 @@
 
 import ctypes
 import gc
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import carb
 import carb.settings
@@ -30,7 +30,6 @@ from isaacsim.core.nodes.scripts.utils import (
     register_node_writer_with_telemetry,
 )
 from isaacsim.core.utils.prims import get_prim_at_path
-from isaacsim.core.utils.stage import traverse_stage
 from isaacsim.sensors.rtx.bindings._isaacsim_sensors_rtx import acquire_interface as _acquire
 from isaacsim.sensors.rtx.bindings._isaacsim_sensors_rtx import release_interface as _release
 from omni.replicator.core import AnnotatorRegistry
@@ -65,7 +64,7 @@ class Extension(omni.ext.IExt):
         # Test if the originating node is of the appropriate type
         if node.get_type_name == upstream_node_type_name:
             carb.log_warn(
-                f"Provided node {node} is of type {usptream_node_type_name}. Setting attribute {attribute} to {value}."
+                f"Provided node {node} is of type {upstream_node_type_name}. Setting attribute {attribute} to {value}."
             )
             if not node.get_attribute(attribute).set(value=value):
                 carb.log_error(
@@ -141,202 +140,62 @@ class Extension(omni.ext.IExt):
 
     def register_nodes(self):
 
-        # Connects:
-        # (GenericModelOutput and RtxSensorMetadata) -> LidarPointAccumulator
-        annotator_name = "GenericModelOutput" + "LidarPointAccumulator"
-
-        def _on_attach_gmo_lidar_point_accumulator(node: og.Node):
-            # Repeat annotator name definition in callback to avoid scope issues
-            annotator_name = "GenericModelOutput" + "LidarPointAccumulator"
-            # Check /app/sensors/nv/lidar/outputBufferOnGPU and set node input appropriately
-            output_lidar_buffer_on_gpu = carb.settings.get_settings().get("/app/sensors/nv/lidar/outputBufferOnGPU")
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:outputOnGPU",
-                value=output_lidar_buffer_on_gpu,
-                node=node,
-            )
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:sendDataId",
-                value=self._lidar_point_accumulator_count,
-                node=node,
-            )
-            self._lidar_point_accumulator_count += 1
-            # Draw upstream connections
-            return self._on_attach_callback_base(
-                annotator_name=annotator_name,
-                connections=[
-                    ("omni.syntheticdata.SdOnNewRenderProductFrame", "cudaStream", node.get_prim_path(), "cudaStream"),
-                ],
-                node=node,
-            )
-
-        register_annotator_from_node_with_telemetry(
-            name=annotator_name,
-            input_rendervars=[
-                omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
-                    "GenericModelOutput" + "Ptr", attributes_mapping={"outputs:dataPtr": "inputs:src"}
-                ),
-                omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
-                    "RtxSensorMetadata" + "Ptr", attributes_mapping={"outputs:dataPtr": "inputs:srcMeta"}
-                ),
-            ],
-            node_type_id="omni.sensors.nv.lidar.LidarPointAccumulator",
-            init_params={
-                "exportBytePoints": True,
-                "publishVizPoints": False,
-                "sendDataId": 2,
-                "colorCode": 1,
-                "sensorMount6DPose": [0, 0, 0, 0, 0, 0],
-                "targetPID": 0,
-                "desiredCoordsType": "SPHERICAL",
-            },
-            on_attach_callback=_on_attach_gmo_lidar_point_accumulator,
-        )
-        self.registered_annotators.append(annotator_name)
-
-        # Connects:
-        # (GenericModelOutput and RtxSensorMetadata) -> LidarPointAccumulator -> IsaacComputeRTXLidarFlatScan
-        annotator_name = "IsaacComputeRTXLidarFlatScan"
-
-        def _on_attach_gmo_flatscan_simulation_time(node: og.Node):
-            # Repeat annotator name definition in callback to avoid scope issues
-            annotator_name = "IsaacComputeRTXLidarFlatScan"
-
-            # Enforce LidarPointAccumulator output on CPU
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:outputOnGPU",
-                value=False,
-                node=node,
-            )
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:sendDataId",
-                value=self._lidar_point_accumulator_count,
-                node=node,
-            )
-            self._lidar_point_accumulator_count += 1
-            return self._on_attach_callback_base(
-                annotator_name=annotator_name,
-                connections=[
-                    (
-                        "omni.syntheticdata.SdOnNewRenderProductFrame",
-                        "cudaStream",
-                        "omni.sensors.nv.lidar.LidarPointAccumulator",
-                        "cudaStream",
-                    ),
-                    (
-                        "omni.syntheticdata.SdRenderVarPtr",
-                        "cudaDeviceIndex",
-                        node.get_prim_path(),
-                        "cudaDeviceIndex",
-                    ),
-                    (
-                        "omni.syntheticdata.SdRenderVarPtr",
-                        "exec",
-                        node.get_prim_path(),
-                        "exec",
-                    ),
-                    (
-                        "omni.syntheticdata.SdOnNewRenderProductFrame",
-                        "renderProductPath",
-                        node.get_prim_path(),
-                        "renderProductPath",
-                    ),
-                ],
-                node=node,
-            )
-
-        register_annotator_from_node_with_telemetry(
-            name=annotator_name,
-            input_rendervars=[
-                omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
-                    "GenericModelOutput" + "LidarPointAccumulator",
-                    attributes_mapping={
-                        "outputs:dest": "inputs:dataPtr",
-                        "outputs:cudaStream": "inputs:cudaStream",
-                    },
-                ),
-            ],
-            node_type_id="isaacsim.sensors.rtx.IsaacComputeRTXLidarFlatScan",
-            output_data_type=np.float32,
-            output_channels=3,
-            on_attach_callback=_on_attach_gmo_flatscan_simulation_time,
-        )
-        self.registered_annotators.append(annotator_name)
-
-        # Connects:
-        # GenericModelOutput -> IsaacExtractRTXSensorPointCloud
         annotator_name = "IsaacExtractRTXSensorPointCloud" + "NoAccumulator"
-
-        def _on_attach_isaac_extract_rtx_sensor_point_cloud_no_accumulator(node: og.Node):
-            # Repeat annotator name definition in callback to avoid scope issues
-            annotator_name = "IsaacExtractRTXSensorPointCloudNoAccumulator"
-            # Draw upstream connections
-            return self._on_attach_callback_base(
-                annotator_name=annotator_name,
-                connections=[
-                    ("omni.syntheticdata.SdOnNewRenderProductFrame", "cudaStream", node.get_prim_path(), "cudaStream"),
-                ],
-                node=node,
-            )
-
         register_annotator_from_node_with_telemetry(
             name=annotator_name,
             input_rendervars=["GenericModelOutput" + "Ptr"],
             node_type_id="isaacsim.sensors.rtx.IsaacExtractRTXSensorPointCloud",
             output_data_type=np.float32,
             output_channels=3,
-            on_attach_callback=_on_attach_isaac_extract_rtx_sensor_point_cloud_no_accumulator,
         )
         self.registered_annotators.append(annotator_name)
 
-        # Connects:
-        # (GenericModelOutput and RtxSensorMetadata) -> LidarPointAccumulator -> IsaacExtractRTXSensorPointCloud
-        annotator_name = "IsaacExtractRTXSensorPointCloud"
+        annotator_name = "IsaacCreateRTXLidarScanBuffer"
+        register_annotator_from_node_with_telemetry(
+            name=annotator_name,
+            input_rendervars=[
+                "GenericModelOutputPtr",
+                omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
+                    "RtxSensorMetadataPtr", attributes_mapping={"outputs:dataPtr": "inputs:metadataPtr"}
+                ),
+            ],
+            node_type_id="isaacsim.sensors.rtx.IsaacCreateRTXLidarScanBuffer",
+            output_data_type=np.float32,
+            output_channels=3,
+        )
+        self.registered_annotators.append(annotator_name)
 
-        def _on_attach_gmo_extract_rtx_sensor_point_cloud(node: og.Node):
+        annotator_name = "IsaacCreateRTXLidarScanBuffer" + "ForFlatScan"
+        register_annotator_from_node_with_telemetry(
+            name=annotator_name,
+            input_rendervars=[
+                "GenericModelOutputPtr",
+                omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
+                    "RtxSensorMetadataPtr", attributes_mapping={"outputs:dataPtr": "inputs:metadataPtr"}
+                ),
+            ],
+            node_type_id="isaacsim.sensors.rtx.IsaacCreateRTXLidarScanBuffer",
+            init_params={"outputAzimuth": True, "outputDistance": True, "outputIntensity": True},
+            output_data_type=np.float32,
+            output_channels=3,
+            hidden=True,
+        )
+        self.registered_annotators.append(annotator_name)
+
+        annotator_name = "IsaacComputeRTXLidarFlatScan"
+
+        def _on_attach_gmo_flatscan(node: og.Node):
             # Repeat annotator name definition in callback to avoid scope issues
-            annotator_name = "IsaacExtractRTXSensorPointCloud"
-
-            # Check /app/sensors/nv/lidar/outputBufferOnGPU and set node input appropriately
-            output_lidar_buffer_on_gpu = carb.settings.get_settings().get("/app/sensors/nv/lidar/outputBufferOnGPU")
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:outputOnGPU",
-                value=output_lidar_buffer_on_gpu,
-                node=node,
-            )
-            self._update_upstream_node_attributes(
-                upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-                attribute="inputs:sendDataId",
-                value=self._lidar_point_accumulator_count,
-                node=node,
-            )
-            self._lidar_point_accumulator_count += 1
-            # self._update_upstream_node_attributes(
-            #     upstream_node_type_name="omni.sensors.nv.lidar.LidarPointAccumulator",
-            #     attribute="inputs:desiredCoordsType",
-            #     value="CARTESIAN",
-            #     node=node,
-            # )
+            annotator_name = "IsaacComputeRTXLidarFlatScan"
 
             return self._on_attach_callback_base(
                 annotator_name=annotator_name,
                 connections=[
                     (
                         "omni.syntheticdata.SdOnNewRenderProductFrame",
-                        "cudaStream",
-                        "omni.sensors.nv.lidar.LidarPointAccumulator",
-                        "cudaStream",
-                    ),
-                    (
-                        "omni.syntheticdata.SdRenderVarPtr",
-                        "exec",
+                        "renderProductPath",
                         node.get_prim_path(),
-                        "exec",
+                        "renderProductPath",
                     ),
                 ],
                 node=node,
@@ -345,39 +204,37 @@ class Extension(omni.ext.IExt):
         register_annotator_from_node_with_telemetry(
             name=annotator_name,
             input_rendervars=[
+                "IsaacCreateRTXLidarScanBuffer" + "ForFlatScan",
                 omni.syntheticdata.SyntheticData.NodeConnectionTemplate(
-                    "GenericModelOutput" + "LidarPointAccumulator",
-                    attributes_mapping={
-                        "outputs:dest": "inputs:dataPtr",
-                        "outputs:cudaStream": "inputs:cudaStream",
-                    },
+                    "RtxSensorMetadataPtr", attributes_mapping={"outputs:dataPtr": "inputs:metaDataPtr"}
                 ),
             ],
-            node_type_id="isaacsim.sensors.rtx.IsaacExtractRTXSensorPointCloud",
+            node_type_id="isaacsim.sensors.rtx.IsaacComputeRTXLidarFlatScan",
             output_data_type=np.float32,
             output_channels=3,
-            on_attach_callback=_on_attach_gmo_extract_rtx_sensor_point_cloud,
+            on_attach_callback=_on_attach_gmo_flatscan,
         )
         self.registered_annotators.append(annotator_name)
 
-        # RTX lidar Debug Draw Writer
+        # RTX Lidar Debug Draw Writer
         register_node_writer_with_telemetry(
             name="RtxLidar" + "DebugDrawPointCloud",
             node_type_id="isaacsim.util.debug_draw.DebugDrawPointCloud",
             annotators=["IsaacExtractRTXSensorPointCloudNoAccumulator"],
-            category="isaacsim.sensors.rtx",
-        )
-
-        # RTX lidar Debug Draw Writer
-        register_node_writer_with_telemetry(
-            name="RtxLidar" + "DebugDrawPointCloud" + "Buffer",
-            node_type_id="isaacsim.util.debug_draw.DebugDrawPointCloud",
-            annotators=["IsaacExtractRTXSensorPointCloud"],
             doTransform=True,
             category="isaacsim.sensors.rtx",
         )
 
-        # RTX radar Debug Draw Writer
+        # RTX Lidar Debug Draw Writer
+        register_node_writer_with_telemetry(
+            name="RtxLidar" + "DebugDrawPointCloud" + "Buffer",
+            node_type_id="isaacsim.util.debug_draw.DebugDrawPointCloud",
+            annotators=["IsaacCreateRTXLidarScanBuffer"],
+            doTransform=True,
+            category="isaacsim.sensors.rtx",
+        )
+
+        # RTX Radar Debug Draw Writer
         register_node_writer_with_telemetry(
             name="RtxRadar" + "DebugDrawPointCloud",
             node_type_id=f"isaacsim.util.debug_draw.DebugDrawPointCloud",
@@ -385,15 +242,7 @@ class Extension(omni.ext.IExt):
             # hard to see radar points... so make them more visible.
             size=0.2,
             color=[1, 0.2, 0.3, 1],
-            category="isaacsim.sensors.rtx",
-        )
-        register_node_writer_with_telemetry(
-            name="RtxRadar" + "DebugDrawPointCloud" + "Buffer",
-            node_type_id=f"isaacsim.util.debug_draw.DebugDrawPointCloud",
-            annotators=["IsaacExtractRTXSensorPointCloud"],
-            # hard to see radar points... so make them more visible.
-            size=0.2,
-            color=[1, 0.2, 0.3, 1],
+            doTransform=True,
             category="isaacsim.sensors.rtx",
         )
 
@@ -406,7 +255,7 @@ class Extension(omni.ext.IExt):
             sensors.get_synthetic_data().unregister_node_template(template)
 
 
-def get_gmo_data(dataPtr: int) -> gmo_utils.GenericModelOutput:
+def get_gmo_data(dataPtr: Union[int, np.ndarray]) -> gmo_utils.GenericModelOutput:
     """Retrieves GMO buffer from pointer to GMO buffer.
 
     Args:
@@ -415,9 +264,16 @@ def get_gmo_data(dataPtr: int) -> gmo_utils.GenericModelOutput:
     Returns:
         gmo_utils.GenericModelOutput: GMO buffer at dataPtr. Empty struct if dataPtr is 0 or None.
     """
-    if dataPtr == 0 or dataPtr is None:
+    if dataPtr is None:
         carb.log_warn(
-            "isaacsim.sensors.rtx.get_gmo_data: received null pointer, returning empty GenericModelOutput buffer."
+            "isaacsim.sensors.rtx.get_gmo_data: received null pointer (None), returning empty GenericModelOutput buffer."
+        )
+        return gmo_utils.GenericModelOutput
+    elif isinstance(dataPtr, np.ndarray):
+        return gmo_utils.getModelOutputFromBuffer(dataPtr)
+    elif dataPtr == 0:
+        carb.log_warn(
+            "isaacsim.sensors.rtx.get_gmo_data: received null pointer (0), returning empty GenericModelOutput buffer."
         )
         return gmo_utils.GenericModelOutput
     # Reach 28 bytes into the GMO data buffer using the pointer address

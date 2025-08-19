@@ -326,7 +326,7 @@ class XformPrim(Prim):
         Backends: :guilabel:`usd`.
 
         Args:
-            visual_materials: Visual materials to be applied to the prims (shape ``(N, 1)``).
+            visual_materials: Visual materials to be applied to the prims (shape ``(N,)``).
                 If the input shape is smaller than expected, data will be broadcasted (following NumPy broadcast rules).
             weaker_than_descendants: Boolean flags to indicate whether descendant materials should be overridden (shape ``(N, 1)``).
                 If the input shape is smaller than expected, data will be broadcasted (following NumPy broadcast rules).
@@ -1101,7 +1101,7 @@ class XformPrim(Prim):
             >>>
             >>> # get default state (default state is set)
             >>> prims.get_default_state()
-            (<warp.types.array object at 0x...>, <warp.types.array object at 0x...>)
+            (array(shape=(3, 3), dtype=float32), array(shape=(3, 4), dtype=float32))
             >>>
             >>> # reset prims to default state
             >>> prims.reset_to_default_state()

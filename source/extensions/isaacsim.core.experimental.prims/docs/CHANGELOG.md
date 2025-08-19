@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.6.2] - 2025-07-28
+### Changed
+- Trigger the synchronous generation of deformable simulation meshes to ensure data is always available
+
+## [0.6.1] - 2025-07-23
+### Fixed
+- Fix deformable prim tests golden values
+
+## [0.6.0] - 2025-07-16
+### Added
+- Add deformable prim for surface and volume deformable bodies
+
+## [0.5.6] - 2025-07-07
+### Fixed
+- Correctly enable omni.kit.loop-isaac in test dependency (fixes issue from 0.5.5)
+
+## [0.5.5] - 2025-07-03
+### Changed
+- Make omni.kit.loop-isaac an explicit test dependency
+
+## [0.5.4] - 2025-06-25
+### Changed
+- Add --reset-user to test args
+
+## [0.5.3] - 2025-06-18
+### Changed
+- Update docstrings for Warp version change
+
 ## [0.5.2] - 2025-06-12
 ### Fixed
 - Fix broken autodocs references in api.rst

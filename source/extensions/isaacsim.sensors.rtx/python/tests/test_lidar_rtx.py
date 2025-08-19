@@ -35,16 +35,17 @@ class TestLidarRtx(omni.kit.test.AsyncTestCase):
 
     # Class constants
     ALLOWED_ANNOTATORS = [
-        "GenericModelOutputLidarPointAccumulator",
+        # "GenericModelOutputLidarPointAccumulator",
         "IsaacComputeRTXLidarFlatScan",
         "IsaacExtractRTXSensorPointCloudNoAccumulator",
-        "IsaacExtractRTXSensorPointCloud",
+        # "IsaacExtractRTXSensorPointCloud",
+        "IsaacCreateRTXLidarScanBuffer",
     ]
 
     EXPECTED_FRAME_KEYS = [
         "rendering_time",
         "rendering_frame",
-        "point_cloud_data",
+        # "point_cloud_data",
         "linear_depth_data",
         "intensities_data",
         "azimuth_range",
@@ -349,7 +350,10 @@ class TestLidarRtx(omni.kit.test.AsyncTestCase):
         current_frame = lidar.get_current_frame()
 
         # Verify annotator and frame data
-        # TODO (adevalla): Pausing and resuming the timeline results in empty GMO buffers - why?
+        # TOOD - re-enable in later release.
+        # Pausing and resuming the timeline results in empty GMO buffers since the clock the lidar renderer uses
+        # increases monotonically even while the animation timeline is paused. This means GMO timestamps will fall
+        # out-of-sync when handed to LidarPointAccumulator, so a full scan is never accumulated.
         # self.verify_frame_data(lidar, current_frame)
 
     def verify_frame_data(self, lidar, current_frame):
@@ -375,7 +379,7 @@ class TestLidarRtx(omni.kit.test.AsyncTestCase):
                     self.assertNotEqual(len(current_frame[key]), 0, f"{key} list/array is empty")
 
         # Confirm data consistency between current_frame and annotator data
-        self.verify_point_cloud_data(current_frame)
+        # self.verify_point_cloud_data(current_frame)
         self.verify_flat_scan_data(current_frame)
 
         # Test the deprecated getter methods to ensure they're not returning None

@@ -27,14 +27,14 @@ import omni.kit.test
 import omni.usd
 from isaacsim.core.api.objects import DynamicCuboid
 from isaacsim.core.utils.prims import get_prim_path
-from isaacsim.core.utils.stage import clear_stage, create_new_stage, traverse_stage
+from isaacsim.core.utils.stage import clear_stage, create_new_stage_async, traverse_stage
 from isaacsim.core.utils.viewports import set_camera_view
 from isaacsim.sensors.physics import _sensor
 from isaacsim.sensors.physx import _range_sensor
 from omni.kit.mainwindow import get_main_window
 from omni.kit.ui_test.menu import *
 from omni.kit.ui_test.query import *
-from omni.kit.viewport.utility import get_active_viewport, get_active_viewport_window
+from omni.kit.viewport.utility import get_active_viewport
 from omni.ui.tests.test_base import OmniUiTest
 from pxr import UsdGeom, UsdPhysics
 
@@ -48,9 +48,8 @@ class TestMenuAssets(OmniUiTest):
     # Before running each test
     async def setUp(self):
         self._timeline = omni.timeline.get_timeline_interface()
-        result = create_new_stage()
+        await create_new_stage_async()
         # Make sure the stage loaded
-        self.assertTrue(result)
         await omni.kit.app.get_app().next_update_async()
         self._golden_img_dir = TEST_DATA_PATH.absolute().joinpath("golden_img").absolute()
 
@@ -147,7 +146,15 @@ class TestMenuAssets(OmniUiTest):
         apriltag_path = "Create/April Tags"
 
         await omni.kit.app.get_app().next_update_async()
-        await menu_click(apriltag_path, human_delay_speed=50)
+        delays = [5, 50, 100]
+        for delay in delays:
+            try:
+                await menu_click(apriltag_path, human_delay_speed=delay)
+                break
+            except AttributeError as e:
+                if "NoneType' object has no attribute 'center'" in str(e) and delay != delays[-1]:
+                    continue
+                raise
         await omni.kit.app.get_app().next_update_async()
 
         omni.kit.commands.execute("CreateMeshPrimWithDefaultXform", prim_type="Cube", above_ground=True)
@@ -202,8 +209,16 @@ class TestMenuAssets(OmniUiTest):
             for _ in range(20):
                 await omni.kit.app.get_app().next_update_async()
             print(test_path)
-            await menu_click(test_path, human_delay_speed=50)
-            for i in range(5):
+            delays = [5, 50, 100]
+            for delay in delays:
+                try:
+                    await menu_click(test_path, human_delay_speed=delay)
+                    break
+                except AttributeError as e:
+                    if "NoneType' object has no attribute 'center'" in str(e) and delay != delays[-1]:
+                        continue
+                    raise
+            for _ in range(10):
                 await omni.kit.app.get_app().next_update_async()
 
             # waiting for stage to load
@@ -295,7 +310,7 @@ class TestMenuAssets(OmniUiTest):
                 print("skipping ", test_path)
                 continue
 
-            clear_stage()
+            await create_new_stage_async()
             get_active_viewport().updates_enabled = False
             await omni.kit.app.get_app().next_update_async()
             await omni.kit.app.get_app().next_update_async()
@@ -309,7 +324,7 @@ class TestMenuAssets(OmniUiTest):
                 cube = DynamicCuboid(prim_path="/Cube")
                 self.usd_selection.set_selected_prim_paths(["/Cube"], True)
             print("clicking ", test_path)
-            await menu_click(test_path, human_delay_speed=2)
+            await menu_click(test_path, human_delay_speed=10)
             self._timeline.play()
             for i in range(5):
                 await omni.kit.app.get_app().next_update_async()

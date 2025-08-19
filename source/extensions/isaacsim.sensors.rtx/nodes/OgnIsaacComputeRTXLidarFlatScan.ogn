@@ -1,12 +1,12 @@
 {
     "IsaacComputeRTXLidarFlatScan": {
         "version": 3,        "icon": "icons/isaac-sim.svg",
-        "description": "Accumulates full scan from the lowest elevation emitter on an RTX Lidar",
+        "description": "Extracts depth and intensity values from returns of accumulated scan of 2D RTX Lidar.",
         "language": "C++",
         "metadata": {
             "categories": ["Sensor"],
             "keywords": ["rtx", "lidar", "sensor"],
-            "tooltip": "Accumulates full scan from the lowest elevation emitter on an RTX Lidar",
+            "tooltip": "Extracts depth and intensity values from returns of accumulated scan of 2D RTX Lidar.",
             "display_name": "Compute RTX Lidar Flat Scan"
         },
         "categoryDefinitions": "config/CategoryDefinition.json",
@@ -19,13 +19,19 @@
             },
             "dataPtr": {
                 "type": "uint64",
-                "description": "Pointer to LiDAR render result.",
+                "description": "DEPRECATED - Pointer to Lidar render result.",
                 "uiName": "Data Pointer",
+                "default": 0
+            },
+            "metaDataPtr": {
+                "type": "uint64",
+                "description": "Pointer to Lidar metadata.",
+                "uiName": "Metadata Pointer",
                 "default": 0
             },
             "cudaDeviceIndex": {
                 "type": "int",
-                "description": "DEPRECATED - Index of the device where the data lives (-1 for host data)",
+                "description": "Index of the device on which data was originally generated.",
                 "default": -1
             },
             "bufferSize": {
@@ -34,12 +40,28 @@
             },
             "renderProductPath": {
                 "type": "token",
-                "description": "Used to retrieve lidar configuration."
+                "description": "Used to retrieve Lidar configuration."
             },
-            "cudaStream": {
-                "description" : "Cuda Stream Input",
-                "type" : "uint64",
-                "default" : 0
+            "intensityPtr":{"uiName": "intensity","type": "uint64",
+                "description": "intensity [0,1]"},
+                "intensityDataType":{
+                    "type": "float",
+                    "default": 4,"description": "type","metadata": {"hidden": "true"}},"intensityBufferSize":{"type": "uint64","description": "size","metadata": {"hidden": "true"
+                }
+            },
+            "distancePtr":{"uiName": "distance","type": "uint64",
+                "description": "range in m"},
+                "distanceDataType":{
+                    "type": "float",
+                    "default": 4,"description": "type","metadata": {"hidden": "true"}},"distanceBufferSize":{"type": "uint64","description": "size","metadata": {"hidden": "true"
+                }
+            },
+            "azimuthPtr":{"uiName": "azimuth","type": "uint64",
+                "description": "azimuth in rad [-pi,pi]"},
+                "azimuthDataType":{
+                    "type": "float",
+                    "default": 4,"description": "type","metadata": {"hidden": "true"}},"azimuthBufferSize":{"type": "uint64","description": "size","metadata": {"hidden": "true"
+                }
             }
         },
         "outputs": {

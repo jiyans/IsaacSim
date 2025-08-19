@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.3.2] - 2025-07-16
+### Fixed
+- Check that PhysX Scene API instances are valid before using them
+
+## [1.3.1] - 2025-07-15
+### Fixed
+- Use carb.log_warn instead of carb.log_warning
+
+## [1.3.0] - 2025-07-14
+### Added
+- Refactor callback management system to use a dictionary of callback handles
+- Allow defult callbacks to be enabled/disabled individually
+- Add new callback management APIs: enable_all_default_callbacks, is_default_callback_enabled, get_default_callback_status
+
+## [1.2.7] - 2025-07-07
+### Fixed
+- Correctly enable omni.kit.loop-isaac in test dependency (fixes issue from 1.2.6)
+
+## [1.2.6] - 2025-07-03
+### Changed
+- Make omni.kit.loop-isaac an explicit test dependency
+
+## [1.2.5] - 2025-06-30
+### Changed
+- Omit testing simulation manager interface on ETM as physics steps are handled differently.
+
+## [1.2.4] - 2025-06-25
+### Changed
+- Add --reset-user to test args
+
+## [1.2.3] - 2025-06-16
+### Fixed
+- SimulationManager.set_default_physics_scene looks up the physics scene prim path provided in the stage in case it wasn't caught with the stage open event and usd notices.
+
 ## [1.2.2] - 2025-06-05
 ### Fixed
 - Added a warning if warmup is not enabled when calling SimulationManager.set_default_physics_scene

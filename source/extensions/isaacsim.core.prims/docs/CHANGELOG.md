@@ -1,4 +1,27 @@
 # Changelog
+## [0.5.1] - 2025-07-21
+### Changed
+- Added explicit `destroy()` method to `Prim`
+
+## [0.5.0] - 2025-07-18
+### Changed
+- Expose the `reset_xform_properties` argument in single prim classes
+
+## [0.4.4] - 2025-07-07
+### Fixed
+- Correctly enable omni.kit.loop-isaac in test dependency (fixes issue from 0.4.3)
+
+## [0.4.3] - 2025-07-03
+### Changed
+- Make omni.kit.loop-isaac an explicit test dependency
+
+## [0.4.2] - 2025-07-01
+### Fixed
+- Added deprecation note for deformable prims
+
+## [0.4.1] - 2025-06-25
+### Changed
+- Add --reset-user to test args
 
 ## [0.4.0] - 2025-06-09
 ### Changed

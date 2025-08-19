@@ -181,21 +181,21 @@ public:
      * @param[in] array Flattened 3x3 intrinsic matrix
      * @param[in] arraySize Size of the array (should be 9)
      */
-    virtual void writeIntrinsicMatrix(const double array[], const int arraySize);
+    virtual void writeIntrinsicMatrix(const double array[], const size_t arraySize);
 
     /**
      * @brief Sets the camera projection matrix
      * @param[in] array Flattened 3x4 projection matrix
      * @param[in] arraySize Size of the array (should be 12)
      */
-    virtual void writeProjectionMatrix(const double array[], const int arraySize);
+    virtual void writeProjectionMatrix(const double array[], const size_t arraySize);
 
     /**
      * @brief Sets the rectification matrix
      * @param[in] array Flattened 3x3 rectification matrix
      * @param[in] arraySize Size of the array (should be 9)
      */
-    virtual void writeRectificationMatrix(const double array[], const int arraySize);
+    virtual void writeRectificationMatrix(const double array[], const size_t arraySize);
 
     /**
      * @brief Sets the distortion parameters
@@ -366,9 +366,9 @@ public:
     virtual void writeData(std::string& childFrame,
                            const pxr::GfVec3d& linearVelocity,
                            const pxr::GfVec3d& angularVelocity,
-                           const pxr::GfVec3f& robotFront,
-                           const pxr::GfVec3f& robotSide,
-                           const pxr::GfVec3f& robotUp,
+                           const pxr::GfVec3d& robotFront,
+                           const pxr::GfVec3d& robotSide,
+                           const pxr::GfVec3d& robotUp,
                            double unitScale,
                            const pxr::GfVec3d& position,
                            const pxr::GfQuatd& orientation,

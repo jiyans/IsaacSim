@@ -168,6 +168,10 @@ Ros2ImuMessageImpl::~Ros2ImuMessageImpl()
 Ros2CameraInfoMessageImpl::Ros2CameraInfoMessageImpl() : Ros2MessageInterfaceImpl("sensor_msgs", "msg", "CameraInfo")
 {
     m_msg = sensor_msgs__msg__CameraInfo__create();
+    if (!m_msg)
+    {
+        CARB_LOG_ERROR("Failed to create sensor_msgs CameraInfo message");
+    }
 }
 
 const void* Ros2CameraInfoMessageImpl::getTypeSupportHandle()
@@ -196,13 +200,29 @@ void Ros2CameraInfoMessageImpl::writeResolution(const uint32_t height, const uin
     cameraInfoMsg->width = width;
 }
 
-void Ros2CameraInfoMessageImpl::writeIntrinsicMatrix(const double array[], const int arraySize)
+void Ros2CameraInfoMessageImpl::writeIntrinsicMatrix(const double array[], const size_t arraySize)
 {
     if (!m_msg)
     {
         return;
     }
+
+    // Validate input parameters
+    if (!array)
+    {
+        CARB_LOG_ERROR("writeIntrinsicMatrix: input array is null");
+        return;
+    }
+
+    if (arraySize != 9)
+    {
+        CARB_LOG_ERROR("writeIntrinsicMatrix: invalid array size %zu, expected 9 for 3x3 matrix", arraySize);
+        return;
+    }
+
     sensor_msgs__msg__CameraInfo* cameraInfoMsg = static_cast<sensor_msgs__msg__CameraInfo*>(m_msg);
+
+    // The k field in sensor_msgs CameraInfo is a fixed-size array of 9 doubles
     memcpy(cameraInfoMsg->k, array, arraySize * sizeof(double));
 }
 
@@ -223,23 +243,55 @@ void Ros2CameraInfoMessageImpl::writeDistortionParameters(std::vector<double>& a
     Ros2MessageInterfaceImpl::writeRosString(distortionModel, cameraInfoMsg->distortion_model);
 }
 
-void Ros2CameraInfoMessageImpl::writeProjectionMatrix(const double array[], const int arraySize)
+void Ros2CameraInfoMessageImpl::writeProjectionMatrix(const double array[], const size_t arraySize)
 {
     if (!m_msg)
     {
         return;
     }
+
+    // Validate input parameters
+    if (!array)
+    {
+        CARB_LOG_ERROR("writeProjectionMatrix: input array is null");
+        return;
+    }
+
+    if (arraySize != 12)
+    {
+        CARB_LOG_ERROR("writeProjectionMatrix: invalid array size %zu, expected 12 for 3x4 matrix", arraySize);
+        return;
+    }
+
     sensor_msgs__msg__CameraInfo* cameraInfoMsg = static_cast<sensor_msgs__msg__CameraInfo*>(m_msg);
+
+    // The p field in sensor_msgs CameraInfo is a fixed-size array of 12 doubles
     memcpy(cameraInfoMsg->p, array, arraySize * sizeof(double));
 }
 
-void Ros2CameraInfoMessageImpl::writeRectificationMatrix(const double array[], const int arraySize)
+void Ros2CameraInfoMessageImpl::writeRectificationMatrix(const double array[], const size_t arraySize)
 {
     if (!m_msg)
     {
         return;
     }
+
+    // Validate input parameters
+    if (!array)
+    {
+        CARB_LOG_ERROR("writeRectificationMatrix: input array is null");
+        return;
+    }
+
+    if (arraySize != 9)
+    {
+        CARB_LOG_ERROR("writeRectificationMatrix: invalid array size %zu, expected 9 for 3x3 matrix", arraySize);
+        return;
+    }
+
     sensor_msgs__msg__CameraInfo* cameraInfoMsg = static_cast<sensor_msgs__msg__CameraInfo*>(m_msg);
+
+    // The r field in sensor_msgs CameraInfo is a fixed-size array of 9 doubles
     memcpy(cameraInfoMsg->r, array, arraySize * sizeof(double));
 }
 
@@ -627,9 +679,9 @@ void Ros2OdometryMessageImpl::writeHeader(const double timeStamp, const std::str
 void Ros2OdometryMessageImpl::writeData(std::string& childFrame,
                                         const pxr::GfVec3d& linearVelocity,
                                         const pxr::GfVec3d& angularVelocity,
-                                        const pxr::GfVec3f& robotFront,
-                                        const pxr::GfVec3f& robotSide,
-                                        const pxr::GfVec3f& robotUp,
+                                        const pxr::GfVec3d& robotFront,
+                                        const pxr::GfVec3d& robotSide,
+                                        const pxr::GfVec3d& robotUp,
                                         double unitScale,
                                         const pxr::GfVec3d& position,
                                         const pxr::GfQuatd& orientation,
@@ -645,38 +697,25 @@ void Ros2OdometryMessageImpl::writeData(std::string& childFrame,
     if (publishRawVelocities)
     {
         // Directly set the velocities without projection
-        odometryMsg->twist.twist.linear.x = static_cast<float>(linearVelocity[0] * unitScale);
-        odometryMsg->twist.twist.linear.y = static_cast<float>(linearVelocity[1] * unitScale);
-        odometryMsg->twist.twist.linear.z = static_cast<float>(linearVelocity[2] * unitScale);
+        odometryMsg->twist.twist.linear.x = linearVelocity[0] * unitScale;
+        odometryMsg->twist.twist.linear.y = linearVelocity[1] * unitScale;
+        odometryMsg->twist.twist.linear.z = linearVelocity[2] * unitScale;
 
-        odometryMsg->twist.twist.angular.x = static_cast<float>(angularVelocity[0]);
-        odometryMsg->twist.twist.angular.y = static_cast<float>(angularVelocity[1]);
-        odometryMsg->twist.twist.angular.z = static_cast<float>(angularVelocity[2]);
+        odometryMsg->twist.twist.angular.x = angularVelocity[0];
+        odometryMsg->twist.twist.angular.y = angularVelocity[1];
+        odometryMsg->twist.twist.angular.z = angularVelocity[2];
     }
 
     else
     {
-
         // Project robot velocities into robot frame using dot-products
-        float measuredSpeedFront = static_cast<float>(pxr::GfDot(linearVelocity, robotFront) * unitScale);
+        odometryMsg->twist.twist.linear.x = pxr::GfDot(linearVelocity, robotFront) * unitScale;
+        odometryMsg->twist.twist.linear.y = pxr::GfDot(linearVelocity, robotSide) * unitScale;
+        odometryMsg->twist.twist.linear.z = pxr::GfDot(linearVelocity, robotUp) * unitScale;
 
-        float measuredSpeedSide = static_cast<float>(pxr::GfDot(linearVelocity, robotSide) * unitScale);
-
-        float measureSpeedUp = static_cast<float>(pxr::GfDot(linearVelocity, robotUp) * unitScale);
-
-        float measureAngularFront = static_cast<float>(pxr::GfDot(angularVelocity, robotFront));
-
-        float measureAngularSide = static_cast<float>(pxr::GfDot(angularVelocity, robotSide));
-
-        float measureAngularUp = static_cast<float>(pxr::GfDot(angularVelocity, robotUp));
-
-        odometryMsg->twist.twist.linear.x = measuredSpeedFront;
-        odometryMsg->twist.twist.linear.y = measuredSpeedSide;
-        odometryMsg->twist.twist.linear.z = measureSpeedUp;
-
-        odometryMsg->twist.twist.angular.x = measureAngularFront;
-        odometryMsg->twist.twist.angular.y = measureAngularSide;
-        odometryMsg->twist.twist.angular.z = measureAngularUp;
+        odometryMsg->twist.twist.angular.x = pxr::GfDot(angularVelocity, robotFront);
+        odometryMsg->twist.twist.angular.y = pxr::GfDot(angularVelocity, robotSide);
+        odometryMsg->twist.twist.angular.z = pxr::GfDot(angularVelocity, robotUp);
     }
     odometryMsg->pose.pose.position.x = position[0];
     odometryMsg->pose.pose.position.y = position[1];

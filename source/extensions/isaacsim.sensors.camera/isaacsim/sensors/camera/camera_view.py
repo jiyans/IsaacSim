@@ -193,16 +193,19 @@ class CameraView(XFormPrim):
         self._setup_tiled_sensor()
 
     def __del__(self):
-        XFormPrim.__del__(self)
+        self.destroy()
+
+    def destroy(self) -> None:
         self._clean_up_tiled_sensor()
+        super().destroy()
 
     def _clean_up_tiled_sensor(self):
         """Clean up the sensor by detaching annotators and destroying render products, and removing related prims."""
         if self._tiled_render_product is not None:
-            # detach annotators from render product
-            self._tiled_annotator.detach([self._tiled_render_product.path])
-            # delete tiled render products
+            for annotator in self._annotators.values():
+                annotator.detach([self._tiled_render_product.path])
             self._tiled_render_product.destroy()
+            self._tiled_render_product = None
 
     def _get_tiled_resolution(self, num_cameras, resolution) -> Tuple[int, int]:
         """Calculate the resolution for the tiled sensor based on the number of cameras and individual camera resolution.
@@ -224,13 +227,13 @@ class CameraView(XFormPrim):
         self._clean_up_tiled_sensor()
 
         self.tiled_resolution = self._get_tiled_resolution(len(self.prims), self.camera_resolution)
-        self._render_product = rep.create.render_product_tiled(
+        self._tiled_render_product = rep.create.render_product_tiled(
             cameras=self.prim_paths,
             tile_resolution=self.camera_resolution,
             name=f"{self.name}_tiled_sensor",
         )
         # define the annotators based on defined types
-        self._render_product_path = self._render_product.path
+        self._render_product_path = self._tiled_render_product.path
         for annotator_type in self._output_annotators:
             # check for supported annotator
             if annotator_type not in ANNOTATOR_SPEC:
@@ -308,13 +311,16 @@ class CameraView(XFormPrim):
         elif isinstance(orientations, torch.Tensor):
             orientation_matrices = self._backend_utils.quats_to_rot_matrices(orientations)
             converted_matrices = torch.matmul(
-                torch.tensor(transform_matrix[:3, :3], dtype=torch.float32), orientation_matrices
+                torch.tensor(transform_matrix[:3, :3], dtype=torch.float32, device=orientation_matrices.device),
+                orientation_matrices,
             )
             return self._backend_utils.rot_matrices_to_quats(converted_matrices)
         elif isinstance(orientations, wp.array):
             # Assuming similar operations are possible with wp.array
             orientation_matrices = self._backend_utils.quats_to_rot_matrices(orientations)
-            converted_matrices = wp.matmul(wp.array(transform_matrix[:3, :3]), orientation_matrices)
+            converted_matrices = wp.matmul(
+                wp.array(transform_matrix[:3, :3], device=orientation_matrices.device), orientation_matrices
+            )
             return self._backend_utils.rot_matrices_to_quats(converted_matrices)
         else:
             raise TypeError("Unsupported type for orientations")
@@ -519,6 +525,9 @@ class CameraView(XFormPrim):
         output_device = str(out.device) if out is not None else "cuda"
         # get the linear sensor data from the tiled annotator and (if needed) slice it to get only the RGB data
         data = self._annotators[spec["name"]].get_data(device=output_device)
+        # If there is no data available yet, return empty array
+        if data is None:
+            return wp.empty(0, device=output_device), {}
         # check whether returned data is a dict (used for segmentation)
         if isinstance(data, dict):
             tiled_data: wp.array = data["data"]
@@ -526,6 +535,9 @@ class CameraView(XFormPrim):
         else:
             tiled_data: wp.array = data
             info = {}
+        # If there is no data available yet, return empty array
+        if tiled_data.shape[0] == 0:
+            return wp.empty(0, device=output_device), {}
         # tiled image
         if tiled:
             shape = (*self.tiled_resolution, spec["channels"])
